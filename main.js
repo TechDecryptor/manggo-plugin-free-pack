@@ -242,15 +242,16 @@ function resolveYoudaoLanguage(text, from, to, options) {
   const source = youdaoLookupLanguage(normalizedSource);
   const target = youdaoLookupLanguage(normalizedTarget);
 
-  if (normalizedSource !== "auto" && !source) {
-    throw new Error(`有道翻译不支持源语言：${from}`);
-  }
   if (normalizedTarget !== "auto" && !target) {
     throw new Error(`有道翻译不支持目标语言：${to}`);
   }
 
-  const detected = source === "auto" ? youdaoLookupLanguage(options?.detect) : source;
-  const inferredSource = source === "auto"
+  // Manggo may pass the detected language as `from` for an automatic-source
+  // request. An unmapped source therefore remains an automatic lookup instead
+  // of failing before Youdao gets a chance to detect the query itself.
+  const automaticSource = normalizedSource === "auto" || !source;
+  const detected = automaticSource ? youdaoLookupLanguage(options?.detect) : source;
+  const inferredSource = automaticSource
     ? (detected && detected !== "auto" ? detected : inferYoudaoLanguage(text))
     : source;
   const resolvedTarget = target === "auto" ? "" : target;
@@ -342,10 +343,16 @@ function manggoDictionaryLanguage(language, text) {
     "ko-kr": "ko_KR",
     fr: "fr_FR",
     "fr-fr": "fr_FR",
+    vi: "vi_VN",
+    "vi-vn": "vi_VN",
     de: "de_DE",
     "de-de": "de_DE",
+    it: "it_IT",
+    "it-it": "it_IT",
     ru: "ru_RU",
     "ru-ru": "ru_RU",
+    uk: "uk_UA",
+    "uk-ua": "uk_UA",
   };
   if (aliases[normalized]) return aliases[normalized];
 
