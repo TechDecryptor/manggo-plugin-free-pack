@@ -1,0 +1,64 @@
+{
+  "manifestVersion": 1,
+  "id": "com.TechDecryptor.manggo.free-pack",
+  "name": "Manggo 免费翻译服务包",
+  "version": "1.1.0",
+  "description": "为 Manggo 提供无需账号或密钥的腾讯交互翻译与有道翻译服务。",
+  "author": "TechDecryptor",
+  "homepage": "https://github.com/TechDecryptor/manggo-plugin-free-pack",
+  "icon": "icon.jpeg",
+  "permissions": [
+    "network"
+  ],
+  "runtime": {
+    "kind": "bun",
+    "api": "manggo.plugin.v1",
+    "main": "main.js"
+  },
+  "services": [
+    {
+      "id": "transmart",
+      "providerId": "com.TechDecryptor.manggo.free-pack.transmart",
+      "kind": "translation",
+      "displayName": "腾讯交互翻译",
+      "entry": "translateTransmart",
+      "resultType": "text",
+      "icon": "transmart.svg",
+      "language": {
+        "auto": "auto",
+        "en_US": "en",
+        "zh_CN": "zh",
+        "zh_TW": "zh-TW",
+        "ja_JP": "ja",
+        "ko_KR": "ko",
+        "fr_FR": "fr",
+        "vi_VN": "vi",
+        "de_DE": "de",
+        "it_IT": "it",
+        "ru_RU": "ru"
+      },
+      "config": []
+    },
+    {
+      "id": "youdao",
+      "providerId": "com.TechDecryptor.manggo.free-pack.youdao",
+      "kind": "translation",
+      "displayName": "有道翻译",
+      "entry": "translateYoudao",
+      "resultType": "dictionary",
+      "icon": "youdao.svg",
+      "language": {
+        "auto": "auto",
+        "en_US": "en",
+        "zh_CN": "zh-CHS",
+        "zh_TW": "zh-CHT",
+        "ja_JP": "ja",
+        "ko_KR": "ko",
+        "fr_FR": "fr",
+        "de_DE": "de",
+        "ru_RU": "ru"
+      },
+      "config": []
+    }
+  ]
+}
