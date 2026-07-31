@@ -14,6 +14,8 @@ const TRANSMART_HEADERS = {
     "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/110.0.0.0 Safari/537.36",
 };
 
+const VOLCENGINE_URL = "https://translate.volcengine.com/crx/translate/v1/";
+
 const YOUDAO_URL = "https://dict.youdao.com/jsonapi_s?doctype=json&jsonversion=4";
 const YOUDAO_KEY_FROM = "webdict";
 const YOUDAO_CLIENT = "web";
@@ -193,6 +195,56 @@ export async function translateTransmart(text, from, to, options) {
   const translations = transmartTranslations(payload);
   if (translations.length === 0) {
     throw new Error("腾讯交互翻译未返回可用译文。");
+  }
+  return translations.join("\n").trim();
+}
+
+function volcengineError(payload) {
+  const baseResponse = payload?.base_resp || payload?.baseResp;
+  if (!baseResponse || typeof baseResponse !== "object") return "";
+
+  const code = scalarCode(baseResponse.status_code ?? baseResponse.statusCode);
+  if (!code || code === "0") return "";
+
+  const message = shortMessage(
+    baseResponse.status_message ?? baseResponse.statusMessage,
+  ) || payloadMessage(payload);
+  return message ? `${message}（错误码：${code}）` : `错误码 ${code}`;
+}
+
+export async function translateVolcengine(text, from, to, options) {
+  const sourceText = textValue(text);
+  if (!sourceText.trim()) return "";
+
+  const requestedSourceLanguage = trimmedValue(from);
+  const sourceLanguage = !requestedSourceLanguage || requestedSourceLanguage === "auto"
+    ? "detect"
+    : requestedSourceLanguage;
+  const targetLanguage = trimmedValue(to);
+  if (!targetLanguage || targetLanguage === "auto" || targetLanguage === "detect") {
+    throw new Error("火山翻译需要明确的目标语言。");
+  }
+
+  const fetch = runtimeFetch(options);
+  const response = await fetch(VOLCENGINE_URL, {
+    method: "POST",
+    headers: {
+      Accept: "application/json",
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      source_language: sourceLanguage,
+      target_language: targetLanguage,
+      text: sourceText,
+    }),
+  });
+  const payload = await jsonResponse(response, "火山翻译");
+  const apiError = volcengineError(payload);
+  if (apiError) throw new Error(`火山翻译失败：${apiError}`);
+
+  const translations = translationItems(payload.translation);
+  if (translations.length === 0) {
+    throw new Error("火山翻译未返回可用译文。");
   }
   return translations.join("\n").trim();
 }
@@ -857,6 +909,7 @@ export async function translateYoudao(text, from, to, options) {
 
 export default {
   translateTransmart,
+  translateVolcengine,
   translateYoudao,
   translateBing,
   translateGoogle,

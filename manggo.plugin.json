@@ -3,7 +3,7 @@
   "id": "com.TechDecryptor.manggo.free-pack",
   "name": "Manggo 免费翻译服务包",
   "version": "1.0.0",
-  "description": "为 Manggo 提供无需账号或密钥的腾讯交互、有道、Bing 与 Google 翻译服务。",
+  "description": "为 Manggo 提供无需账号、API Key 或额外配置的翻译服务。",
   "author": "TechDecryptor",
   "homepage": "https://github.com/TechDecryptor/manggo-plugin-free-pack",
   "icon": "icon.jpeg",
@@ -36,6 +36,33 @@
         "de_DE": "de",
         "it_IT": "it",
         "ru_RU": "ru"
+      },
+      "config": []
+    },
+    {
+      "id": "volcengine",
+      "providerId": "com.TechDecryptor.manggo.free-pack.volcengine",
+      "kind": "translation",
+      "displayName": "火山翻译",
+      "entry": "translateVolcengine",
+      "resultType": "text",
+      "icon": "volcengine.svg",
+      "language": {
+        "auto": "detect",
+        "en_US": "en",
+        "zh_CN": "zh",
+        "zh_TW": "zh",
+        "ja_JP": "ja",
+        "ko_KR": "ko",
+        "fr_FR": "fr",
+        "es_ES": "es",
+        "vi_VN": "vi",
+        "de_DE": "de",
+        "it_IT": "it",
+        "pt_PT": "pt",
+        "pt_BR": "pt",
+        "ru_RU": "ru",
+        "uk_UA": "uk"
       },
       "config": []
     },

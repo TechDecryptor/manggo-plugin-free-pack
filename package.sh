@@ -15,6 +15,7 @@ zip -q -r "$OUT_FILE" \
   bing-token-cache.js \
   icon.jpeg \
   transmart.svg \
+  volcengine.svg \
   youdao.svg \
   bing.svg \
   google.svg \
