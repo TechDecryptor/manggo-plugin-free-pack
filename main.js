@@ -1,8 +1,3 @@
-/*
- * SPDX-License-Identifier: GPL-3.0-only
- * Request formats adapted from the Pot TranSmart and Youdao plugins credited in README.md.
- */
-
 import { createHash } from "node:crypto";
 
 const TRANSMART_URL = "https://transmart.qq.com/api/imt";
