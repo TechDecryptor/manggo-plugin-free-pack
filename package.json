@@ -6,6 +6,6 @@
   "type": "module",
   "scripts": {
     "test": "bun test",
-    "package": "./package.sh"
+    "package": "bash ./package.sh"
   }
 }

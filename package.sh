@@ -11,9 +11,13 @@ cd "$ROOT"
 zip -q -r "$OUT_FILE" \
   manggo.plugin.json \
   main.js \
+  bing-edge-client.js \
+  bing-token-cache.js \
   icon.jpeg \
   transmart.svg \
   youdao.svg \
+  bing.svg \
+  google.svg \
   README.md \
   LICENSE
 

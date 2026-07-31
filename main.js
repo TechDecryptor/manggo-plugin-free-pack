@@ -1,5 +1,8 @@
 import { createHash } from "node:crypto";
 
+import { currentBingEdgeVersion, refreshBingEdgeVersion } from "./bing-edge-client.js";
+import { bingTokenCache } from "./bing-token-cache.js";
+
 const TRANSMART_URL = "https://transmart.qq.com/api/imt";
 const TRANSMART_CLIENT_KEY =
   "browser-chrome-110.0.0-Mac OS-df4bd4c5-a65d-44b2-a40f-42f34f3535f2-1677486696487";
@@ -22,6 +25,11 @@ const YOUDAO_HEADERS = {
   "User-Agent":
     "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
 };
+
+const GOOGLE_URL = "https://translate.google.com/translate_a/single";
+
+const BING_URL = "https://api-edge.cognitive.microsofttranslator.com/translate";
+const BING_AUTH_URL = "https://edge.microsoft.com/translate/auth";
 
 function textValue(value) {
   return String(value ?? "");
@@ -57,13 +65,16 @@ function payloadMessage(payload) {
   return "";
 }
 
-async function jsonResponse(response, serviceName) {
-  let raw = "";
+async function responseText(response, serviceName) {
   try {
-    raw = await response.text();
+    return await response.text();
   } catch (error) {
     throw new Error(`${serviceName}响应读取失败：${shortMessage(error?.message || error)}`);
   }
+}
+
+async function jsonResponse(response, serviceName) {
+  const raw = await responseText(response, serviceName);
 
   let payload;
   if (raw.trim()) {
@@ -184,6 +195,196 @@ export async function translateTransmart(text, from, to, options) {
     throw new Error("腾讯交互翻译未返回可用译文。");
   }
   return translations.join("\n").trim();
+}
+
+function googleTranslateUrl(text, from, to) {
+  const url = new URL(GOOGLE_URL);
+  for (const dataType of ["at", "bd", "ex", "ld", "md", "qca", "rw", "rm", "ss", "t"]) {
+    url.searchParams.append("dt", dataType);
+  }
+  url.searchParams.set("client", "gtx");
+  url.searchParams.set("sl", trimmedValue(from) || "auto");
+  url.searchParams.set("tl", to);
+  url.searchParams.set("hl", to);
+  url.searchParams.set("ie", "UTF-8");
+  url.searchParams.set("oe", "UTF-8");
+  url.searchParams.set("otf", "1");
+  url.searchParams.set("ssel", "0");
+  url.searchParams.set("tsel", "0");
+  url.searchParams.set("kc", "7");
+  url.searchParams.set("q", text);
+  return url.toString();
+}
+
+function googleTranslatedText(payload) {
+  const segments = Array.isArray(payload) ? payload[0] : null;
+  if (!Array.isArray(segments)) return "";
+
+  return segments
+    .map((segment) => Array.isArray(segment) && typeof segment[0] === "string" ? segment[0] : "")
+    .join("")
+    .trim();
+}
+
+export async function translateGoogle(text, from, to, options) {
+  const sourceText = textValue(text);
+  if (!sourceText.trim()) return "";
+
+  const targetLanguage = trimmedValue(to);
+  if (!targetLanguage || targetLanguage === "auto") {
+    throw new Error("Google 翻译需要明确的目标语言。");
+  }
+
+  const fetch = runtimeFetch(options);
+  const response = await fetch(googleTranslateUrl(sourceText, from, targetLanguage), {
+    method: "GET",
+    headers: {
+      "Content-Type": "application/json",
+    },
+  });
+  const payload = await jsonResponse(response, "Google 翻译");
+  const translatedText = googleTranslatedText(payload);
+  if (!translatedText) {
+    throw new Error("Google 翻译未返回可用译文。");
+  }
+  return translatedText;
+}
+
+function bingEdgeMajorVersion(version) {
+  const majorVersion = trimmedValue(version).split(".")[0];
+  return /^\d+$/u.test(majorVersion) ? majorVersion : "150";
+}
+
+function bingUserAgent(version) {
+  const majorVersion = bingEdgeMajorVersion(version);
+  return `Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/${majorVersion}.0.0.0 Safari/537.36 Edg/${version}`;
+}
+
+function bingHeaders(version) {
+  const majorVersion = bingEdgeMajorVersion(version);
+  return {
+    Accept: "*/*",
+    "Accept-Language": "zh-TW,zh;q=0.9,ja;q=0.8,zh-CN;q=0.7,en-US;q=0.6,en;q=0.5",
+    "Cache-Control": "no-cache",
+    Pragma: "no-cache",
+    Referer: "https://appsumo.com/",
+    "Referrer-Policy": "strict-origin-when-cross-origin",
+    "Sec-CH-UA": `"Not_A Brand";v="99", "Chromium";v="${majorVersion}", "Microsoft Edge";v="${majorVersion}"`,
+    "Sec-CH-UA-Mobile": "?0",
+    "Sec-CH-UA-Platform": '"Windows"',
+    "Sec-Fetch-Dest": "empty",
+    "Sec-Fetch-Mode": "cors",
+    "Sec-Fetch-Site": "cross-site",
+    "User-Agent": bingUserAgent(version),
+  };
+}
+
+async function requestBingToken(fetch, version) {
+  const response = await fetch(BING_AUTH_URL, {
+    method: "GET",
+    headers: {
+      "User-Agent": bingUserAgent(version),
+    },
+  });
+  return {
+    response,
+    raw: await responseText(response, "Bing 翻译授权"),
+  };
+}
+
+function unsupportedBingBrowserVersion(attempt) {
+  return attempt.response.status === 400
+    && /client browser version not supported/iu.test(attempt.raw);
+}
+
+function successfulBingToken(attempt) {
+  if (!attempt.response.ok) {
+    throw new Error(
+      `Bing 翻译授权请求失败：HTTP ${attempt.response.status}${attempt.raw ? `，${shortMessage(attempt.raw)}` : ""}`,
+    );
+  }
+
+  const token = trimmedValue(attempt.raw);
+  if (!token) throw new Error("Bing 翻译授权未返回有效令牌。");
+  return token;
+}
+
+async function fetchBingToken(fetch, cacheDir) {
+  return await bingTokenCache.get(cacheDir, async () => {
+    let edgeVersion = currentBingEdgeVersion();
+    let attempt = await requestBingToken(fetch, edgeVersion);
+    if (unsupportedBingBrowserVersion(attempt)) {
+      try {
+        edgeVersion = await refreshBingEdgeVersion(fetch);
+      } catch (error) {
+        throw new Error(
+          `Bing 翻译授权使用的 Edge 版本已失效，且自动更新失败：${shortMessage(error?.message || error)}`,
+        );
+      }
+      attempt = await requestBingToken(fetch, edgeVersion);
+    }
+
+    return successfulBingToken(attempt);
+  });
+}
+
+function bingTranslateUrl(from, to) {
+  const url = new URL(BING_URL);
+  const sourceLanguage = trimmedValue(from) || "auto";
+  if (sourceLanguage !== "auto") url.searchParams.set("from", sourceLanguage);
+  url.searchParams.set("to", to);
+  url.searchParams.set("api-version", "3.0");
+  url.searchParams.set("includeSentenceLength", "true");
+  return url.toString();
+}
+
+function bingError(payload) {
+  const error = payload?.error;
+  if (!error || typeof error !== "object") return "";
+
+  const code = scalarCode(error.code);
+  const message = shortMessage(error.message);
+  if (code && message) return `${message}（错误码：${code}）`;
+  return message || (code ? `错误码 ${code}` : "Bing 翻译返回了未知错误。");
+}
+
+function bingTranslatedText(payload) {
+  const translation = Array.isArray(payload)
+    ? payload[0]?.translations?.[0]?.text
+    : null;
+  return typeof translation === "string" ? translation.trim() : "";
+}
+
+export async function translateBing(text, from, to, options) {
+  const sourceText = textValue(text);
+  if (!sourceText.trim()) return "";
+
+  const targetLanguage = trimmedValue(to);
+  if (!targetLanguage || targetLanguage === "auto") {
+    throw new Error("Bing 翻译需要明确的目标语言。");
+  }
+
+  const fetch = runtimeFetch(options);
+  const token = await fetchBingToken(fetch, options?.utils?.cacheDir);
+  const edgeVersion = currentBingEdgeVersion();
+  const response = await fetch(bingTranslateUrl(from, targetLanguage), {
+    method: "POST",
+    headers: {
+      ...bingHeaders(edgeVersion),
+      Authorization: `Bearer ${token}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify([{ Text: sourceText }]),
+  });
+  const payload = await jsonResponse(response, "Bing 翻译");
+  const apiError = bingError(payload);
+  if (apiError) throw new Error(`Bing 翻译失败：${apiError}`);
+
+  const translatedText = bingTranslatedText(payload);
+  if (!translatedText) {
+    throw new Error("Bing 翻译未返回可用译文。");
+  }
+  return translatedText;
 }
 
 function md5Hex(value) {
@@ -657,4 +858,6 @@ export async function translateYoudao(text, from, to, options) {
 export default {
   translateTransmart,
   translateYoudao,
+  translateBing,
+  translateGoogle,
 };
