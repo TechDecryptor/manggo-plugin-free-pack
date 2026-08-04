@@ -9,7 +9,7 @@
 | 腾讯交互翻译 | 文本 | 使用腾讯交互翻译网页接口 |
 | 火山翻译 | 文本 | 使用火山翻译浏览器扩展接口 |
 | 有道翻译 | 词典 / 文本 | 单词优先返回词典结果，其他内容返回文本译文 |
-| Bing 翻译 | 文本 | 使用 Microsoft Edge 翻译接口 |
+| Bing 翻译 | 文本 | 使用 Microsoft Edge 136+ `translatetext` 接口 |
 | Google 翻译 | 文本 | 使用 Google Translate 网页接口 |
 
 安装后即可在 Manggo 的翻译服务中启用，各服务的配置项均为空。

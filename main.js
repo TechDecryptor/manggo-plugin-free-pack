@@ -1,8 +1,5 @@
 import { createHash } from "node:crypto";
 
-import { currentBingEdgeVersion, refreshBingEdgeVersion } from "./bing-edge-client.js";
-import { bingTokenCache } from "./bing-token-cache.js";
-
 const TRANSMART_URL = "https://transmart.qq.com/api/imt";
 const TRANSMART_CLIENT_KEY =
   "browser-chrome-110.0.0-Mac OS-df4bd4c5-a65d-44b2-a40f-42f34f3535f2-1677486696487";
@@ -30,8 +27,27 @@ const YOUDAO_HEADERS = {
 
 const GOOGLE_URL = "https://translate.google.com/translate_a/single";
 
-const BING_URL = "https://api-edge.cognitive.microsofttranslator.com/translate";
-const BING_AUTH_URL = "https://edge.microsoft.com/translate/auth";
+const BING_URL = "https://edge.microsoft.com/translate/translatetext";
+const BING_EDGE_MAJOR_VERSION = "151";
+const BING_EDGE_VERSION = "151.0.4129.59";
+const BING_EDGE_USER_AGENT_VERSION = "151.0.0.0";
+const BING_HEADERS = {
+  Accept: "*/*",
+  "Accept-Language": "zh-CN,zh;q=0.9,en;q=0.8,en-GB;q=0.7,en-US;q=0.6",
+  "Content-Type": "application/json",
+  "Sec-CH-UA": `"Not=A?Brand";v="99", "Microsoft Edge";v="${BING_EDGE_MAJOR_VERSION}", "Chromium";v="${BING_EDGE_MAJOR_VERSION}"`,
+  "Sec-CH-UA-Mobile": "?0",
+  "Sec-CH-UA-Platform": '"Windows"',
+  "Sec-Mesh-Client-Arch": "x86_64",
+  "Sec-Mesh-Client-Edge-Channel": "stable",
+  "Sec-Mesh-Client-Edge-Version": BING_EDGE_VERSION,
+  "Sec-Mesh-Client-OS": "Windows",
+  "Sec-Mesh-Client-OS-Version": "10.0.26200",
+  "Sec-Mesh-Client-WebView": "0",
+  "User-Agent":
+    `Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/${BING_EDGE_MAJOR_VERSION}.0.0.0 Safari/537.36 Edg/${BING_EDGE_USER_AGENT_VERSION}`,
+  "X-Edge-Shopping-Flag": "0",
+};
 
 function textValue(value) {
   return String(value ?? "");
@@ -302,91 +318,12 @@ export async function translateGoogle(text, from, to, options) {
   return translatedText;
 }
 
-function bingEdgeMajorVersion(version) {
-  const majorVersion = trimmedValue(version).split(".")[0];
-  return /^\d+$/u.test(majorVersion) ? majorVersion : "150";
-}
-
-function bingUserAgent(version) {
-  const majorVersion = bingEdgeMajorVersion(version);
-  return `Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/${majorVersion}.0.0.0 Safari/537.36 Edg/${version}`;
-}
-
-function bingHeaders(version) {
-  const majorVersion = bingEdgeMajorVersion(version);
-  return {
-    Accept: "*/*",
-    "Accept-Language": "zh-TW,zh;q=0.9,ja;q=0.8,zh-CN;q=0.7,en-US;q=0.6,en;q=0.5",
-    "Cache-Control": "no-cache",
-    Pragma: "no-cache",
-    Referer: "https://appsumo.com/",
-    "Referrer-Policy": "strict-origin-when-cross-origin",
-    "Sec-CH-UA": `"Not_A Brand";v="99", "Chromium";v="${majorVersion}", "Microsoft Edge";v="${majorVersion}"`,
-    "Sec-CH-UA-Mobile": "?0",
-    "Sec-CH-UA-Platform": '"Windows"',
-    "Sec-Fetch-Dest": "empty",
-    "Sec-Fetch-Mode": "cors",
-    "Sec-Fetch-Site": "cross-site",
-    "User-Agent": bingUserAgent(version),
-  };
-}
-
-async function requestBingToken(fetch, version) {
-  const response = await fetch(BING_AUTH_URL, {
-    method: "GET",
-    headers: {
-      "User-Agent": bingUserAgent(version),
-    },
-  });
-  return {
-    response,
-    raw: await responseText(response, "Bing 翻译授权"),
-  };
-}
-
-function unsupportedBingBrowserVersion(attempt) {
-  return attempt.response.status === 400
-    && /client browser version not supported/iu.test(attempt.raw);
-}
-
-function successfulBingToken(attempt) {
-  if (!attempt.response.ok) {
-    throw new Error(
-      `Bing 翻译授权请求失败：HTTP ${attempt.response.status}${attempt.raw ? `，${shortMessage(attempt.raw)}` : ""}`,
-    );
-  }
-
-  const token = trimmedValue(attempt.raw);
-  if (!token) throw new Error("Bing 翻译授权未返回有效令牌。");
-  return token;
-}
-
-async function fetchBingToken(fetch, cacheDir) {
-  return await bingTokenCache.get(cacheDir, async () => {
-    let edgeVersion = currentBingEdgeVersion();
-    let attempt = await requestBingToken(fetch, edgeVersion);
-    if (unsupportedBingBrowserVersion(attempt)) {
-      try {
-        edgeVersion = await refreshBingEdgeVersion(fetch);
-      } catch (error) {
-        throw new Error(
-          `Bing 翻译授权使用的 Edge 版本已失效，且自动更新失败：${shortMessage(error?.message || error)}`,
-        );
-      }
-      attempt = await requestBingToken(fetch, edgeVersion);
-    }
-
-    return successfulBingToken(attempt);
-  });
-}
-
 function bingTranslateUrl(from, to) {
   const url = new URL(BING_URL);
   const sourceLanguage = trimmedValue(from) || "auto";
   if (sourceLanguage !== "auto") url.searchParams.set("from", sourceLanguage);
   url.searchParams.set("to", to);
-  url.searchParams.set("api-version", "3.0");
-  url.searchParams.set("includeSentenceLength", "true");
+  url.searchParams.set("isEnterpriseClient", "false");
   return url.toString();
 }
 
@@ -417,16 +354,10 @@ export async function translateBing(text, from, to, options) {
   }
 
   const fetch = runtimeFetch(options);
-  const token = await fetchBingToken(fetch, options?.utils?.cacheDir);
-  const edgeVersion = currentBingEdgeVersion();
   const response = await fetch(bingTranslateUrl(from, targetLanguage), {
     method: "POST",
-    headers: {
-      ...bingHeaders(edgeVersion),
-      Authorization: `Bearer ${token}`,
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify([{ Text: sourceText }]),
+    headers: BING_HEADERS,
+    body: JSON.stringify([sourceText]),
   });
   const payload = await jsonResponse(response, "Bing 翻译");
   const apiError = bingError(payload);

@@ -2,7 +2,7 @@
   "manifestVersion": 1,
   "id": "com.TechDecryptor.manggo.free-pack",
   "name": "Manggo 免费翻译服务包",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "为 Manggo 提供无需账号、API Key 或额外配置的翻译服务。",
   "author": "TechDecryptor",
   "homepage": "https://github.com/TechDecryptor/manggo-plugin-free-pack",
