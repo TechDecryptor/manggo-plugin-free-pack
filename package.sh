@@ -17,6 +17,7 @@ zip -q -r "$OUT_FILE" \
   youdao.svg \
   bing.svg \
   google.svg \
+  baimiao.png \
   README.md \
   LICENSE
 

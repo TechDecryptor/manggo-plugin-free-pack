@@ -1,9 +1,9 @@
 {
   "manifestVersion": 1,
   "id": "com.TechDecryptor.manggo.free-pack",
-  "name": "Manggo 免费翻译服务包",
-  "version": "1.0.1",
-  "description": "为 Manggo 提供无需账号、API Key 或额外配置的翻译服务。",
+  "name": "Manggo 免费服务包",
+  "version": "1.1.0",
+  "description": "为 Manggo 提供翻译服务及白描 OCR 识别。",
   "author": "TechDecryptor",
   "homepage": "https://github.com/TechDecryptor/manggo-plugin-free-pack",
   "icon": "icon.jpeg",
@@ -134,6 +134,29 @@
         "uk_UA": "uk"
       },
       "config": []
+    },
+    {
+      "id": "baimiao",
+      "providerId": "com.TechDecryptor.manggo.free-pack.baimiao",
+      "kind": "ocr",
+      "displayName": "白描 OCR",
+      "entry": "recognizeBaimiao",
+      "icon": "baimiao.png",
+      "config": [
+        {
+          "key": "username",
+          "label": "手机号或邮箱",
+          "control": "text",
+          "required": true
+        },
+        {
+          "key": "password",
+          "label": "密码",
+          "control": "password",
+          "required": true,
+          "secret": true
+        }
+      ]
     }
   ]
 }
