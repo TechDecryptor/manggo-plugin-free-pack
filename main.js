@@ -27,7 +27,8 @@ const YOUDAO_HEADERS = {
     "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
 };
 
-const GOOGLE_URL = "https://translate.google.com/translate_a/single";
+const GOOGLE_URL = "https://translate.google.com/_/TranslateWebserverUi/data/batchexecute";
+const GOOGLE_TRANSLATE_RPC = "MkEWBc";
 
 const BING_URL = "https://edge.microsoft.com/translate/translatetext";
 const BING_EDGE_MAJOR_VERSION = "151";
@@ -267,33 +268,31 @@ export async function translateVolcengine(text, from, to, options) {
   return translations.join("\n").trim();
 }
 
-function googleTranslateUrl(text, from, to) {
-  const url = new URL(GOOGLE_URL);
-  for (const dataType of ["at", "bd", "ex", "ld", "md", "qca", "rw", "rm", "ss", "t"]) {
-    url.searchParams.append("dt", dataType);
+// Updated 2026-11-19 to use Google Translate's web RPC for translation.
+function googleTranslatedText(raw, targetLanguage) {
+  const separator = /^(zh|ja)(-|$)/i.test(targetLanguage) ? "" : " ";
+  for (const line of raw.split("\n")) {
+    // The response has a security prefix and line-delimited JSON batches.
+    const batch = line.trim();
+    if (!batch.startsWith("[[")) continue;
+    const reply = JSON.parse(batch).find((entry) => (
+      entry?.[0] === "wrb.fr" && entry[1] === GOOGLE_TRANSLATE_RPC
+    ));
+    if (typeof reply?.[2] !== "string") continue;
+    const result = JSON.parse(reply[2])?.[1]?.[0]?.[0];
+    const segments = result?.[5];
+    if (!Array.isArray(segments)) return typeof result?.[0] === "string" ? result[0].trim() : "";
+
+    let translatedText = "";
+    for (const segment of segments) {
+      const text = segment?.[0];
+      if (typeof text !== "string" || !text) continue;
+      if (translatedText && !/\s$/.test(translatedText) && !/^\s/.test(text)) translatedText += separator;
+      translatedText += text;
+    }
+    return translatedText.trim();
   }
-  url.searchParams.set("client", "gtx");
-  url.searchParams.set("sl", trimmedValue(from) || "auto");
-  url.searchParams.set("tl", to);
-  url.searchParams.set("hl", to);
-  url.searchParams.set("ie", "UTF-8");
-  url.searchParams.set("oe", "UTF-8");
-  url.searchParams.set("otf", "1");
-  url.searchParams.set("ssel", "0");
-  url.searchParams.set("tsel", "0");
-  url.searchParams.set("kc", "7");
-  url.searchParams.set("q", text);
-  return url.toString();
-}
-
-function googleTranslatedText(payload) {
-  const segments = Array.isArray(payload) ? payload[0] : null;
-  if (!Array.isArray(segments)) return "";
-
-  return segments
-    .map((segment) => Array.isArray(segment) && typeof segment[0] === "string" ? segment[0] : "")
-    .join("")
-    .trim();
+  return "";
 }
 
 export async function translateGoogle(text, from, to, options) {
@@ -305,18 +304,32 @@ export async function translateGoogle(text, from, to, options) {
     throw new Error("Google 翻译需要明确的目标语言。");
   }
 
+  const url = new URL(GOOGLE_URL);
+  url.searchParams.set("rpcids", GOOGLE_TRANSLATE_RPC);
+  url.searchParams.set("hl", "en");
+  url.searchParams.set("rt", "c");
+  const sourceLanguage = trimmedValue(from) || "auto";
+  const translation = JSON.stringify([[sourceText, sourceLanguage, targetLanguage, true], [null]]);
+  const request = JSON.stringify([[[GOOGLE_TRANSLATE_RPC, translation, null, "generic"]]]);
   const fetch = runtimeFetch(options);
-  const response = await fetch(googleTranslateUrl(sourceText, from, targetLanguage), {
-    method: "GET",
-    headers: {
-      "Content-Type": "application/json",
-    },
+  const response = await fetch(url.toString(), {
+    method: "POST",
+    headers: { "Content-Type": "application/x-www-form-urlencoded;charset=UTF-8" },
+    body: new URLSearchParams({ "f.req": request }).toString(),
   });
-  const payload = await jsonResponse(response, "Google 翻译");
-  const translatedText = googleTranslatedText(payload);
-  if (!translatedText) {
-    throw new Error("Google 翻译未返回可用译文。");
+  if (response.status === 429) {
+    throw new Error("Google 翻译请求被限流（HTTP 429），请稍后再试。");
   }
+  if (!response.ok) throw new Error(`Google 翻译请求失败（HTTP ${response.status}）。`);
+
+  const raw = await responseText(response, "Google 翻译");
+  let translatedText;
+  try {
+    translatedText = googleTranslatedText(raw, targetLanguage);
+  } catch (_) {
+    throw new Error("Google 翻译返回了无法解析的响应。");
+  }
+  if (!translatedText) throw new Error("Google 翻译未返回可用译文。");
   return translatedText;
 }
 
