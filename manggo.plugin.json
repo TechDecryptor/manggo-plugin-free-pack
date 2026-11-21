@@ -2,7 +2,7 @@
   "manifestVersion": 1,
   "id": "com.TechDecryptor.manggo.free-pack",
   "name": "Manggo 免费服务包",
-  "version": "1.2.0",
+  "version": "1.2.1",
   "description": "为 Manggo 提供翻译服务及白描 OCR 识别。",
   "author": "TechDecryptor",
   "homepage": "https://github.com/TechDecryptor/manggo-plugin-free-pack",
@@ -10,6 +10,7 @@
   "permissions": [
     "network"
   ],
+  "requires": { "capabilities": ["translation.pronunciationAudio"] },
   "runtime": {
     "kind": "bun",
     "api": "manggo.plugin.v1",
