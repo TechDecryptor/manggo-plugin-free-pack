@@ -1,0 +1,10 @@
+{
+  "id": "com.TechDecryptor.manggo.free-pack",
+  "versions": [
+    {
+      "version": "__VERSION__",
+      "url": "https://github.com/TechDecryptor/manggo-plugin-free-pack/releases/download/v__VERSION__/com.TechDecryptor.manggo.free-pack.mplugin",
+      "sha256": "__SHA256__"
+    }
+  ]
+}
