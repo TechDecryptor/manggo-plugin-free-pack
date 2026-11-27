@@ -5,6 +5,7 @@
   "license": "GPL-3.0-only",
   "type": "module",
   "scripts": {
-    "package": "bash ./package.sh"
+    "package": "bash ./package.sh",
+    "test": "node --test"
   }
 }
