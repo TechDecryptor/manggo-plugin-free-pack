@@ -20,9 +20,21 @@ jobs:
         run: |
           bash ./package.sh
 
+      - name: Generate update feed
+        shell: bash
+        run: |
+          version=$(jq -r .version manggo.plugin.json)
+          test "$GITHUB_REF_NAME" = "v$version"
+          sha256=$(shasum -a 256 dist/com.TechDecryptor.manggo.free-pack.mplugin)
+          sed -e "s/__VERSION__/$version/g" -e "s/__SHA256__/${sha256%% *}/" \
+            .github/updates.template.json > dist/updates.json
+
       - name: Upload Release
         if: startsWith(github.ref, 'refs/tags')
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@v3
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
-          files: "dist/*.mplugin"
+          fail_on_unmatched_files: true
+          files: |
+            dist/com.TechDecryptor.manggo.free-pack.mplugin
+            dist/updates.json
