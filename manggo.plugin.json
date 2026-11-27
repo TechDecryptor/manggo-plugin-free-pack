@@ -11,8 +11,9 @@
   "permissions": [
     "network"
   ],
+  "requires": { "capabilities": ["translation.pronunciationAudio"] },
   "runtime": {
-    "kind": "bun",
+    "kind": "moejs",
     "api": "manggo.plugin.v1",
     "main": "main.js"
   },
