@@ -568,41 +568,44 @@ function dictionarySourceLanguage(text, from, options) {
   return manggoDictionaryLanguage("", text);
 }
 
-function youdaoAudioUrl(value) {
-  const speech = trimmedValue(value);
-  if (!speech) return "";
+// Only short English headwords, never paragraphs, URLs or email addresses.
+function englishHeadword(value) {
+  const word = typeof value === "string" ? value.trim().replace(/’/g, "'") : "";
+  return word.length <= 32 && /^[a-z]+(?:['-][a-z]+)?$/i.test(word) ? word.toLowerCase() : "";
+}
 
-  const [audio, ...extraParts] = speech.split("&");
-  if (!audio) return "";
+function normalizePronunciationPhone(value) {
+  if (typeof value !== "string") return "";
+  const phonetic = value.trim().replace(/^\/(.*)\/$/u, "$1").trim();
+  return phonetic.length <= 96 && !/[\x00-\x1f\x7f-\x9f]/u.test(phonetic) ? phonetic : "";
+}
+
+function youdaoAudioUrl(value, sourceText) {
+  const speech = typeof value === "string" ? value.trim() : "";
+  const source = englishHeadword(sourceText);
+  if (!source || !speech || speech.length > 256) return "";
+
+  const [audio, ...parameters] = speech.split("&");
+  if (englishHeadword(audio) !== source) return "";
   const url = new URL("https://dict.youdao.com/dictvoice");
-  url.searchParams.set("audio", audio);
-  for (const part of extraParts) {
-    const separator = part.indexOf("=");
-    if (separator <= 0) continue;
-    const key = part.slice(0, separator).trim();
-    const parameterValue = part.slice(separator + 1).trim();
-    if (key === "type" && parameterValue) {
-      url.searchParams.set(key, parameterValue);
-    }
-  }
+  url.searchParams.set("audio", source);
+  const types = parameters.filter(part => part.startsWith("type="));
+  if (types.length > 1 || (types.length === 1 && !/^type=[12]$/.test(types[0]))) return "";
+  if (types.length === 1) url.searchParams.set("type", types[0].slice(-1));
   return url.toString();
 }
 
-function youdaoPronunciations(word) {
+function youdaoPronunciations(word, sourceText) {
   const definitions = [
     { label: "US", phone: word?.usphone, speech: word?.usspeech },
     { label: "UK", phone: word?.ukphone, speech: word?.ukspeech },
   ];
 
   return definitions.flatMap(({ label, phone, speech }) => {
-    const phonetic = trimmedValue(phone).replace(/^\/(.*)\/$/u, "$1");
-    const audioUrl = youdaoAudioUrl(speech);
-    if (!phonetic && !audioUrl) return [];
-    return [{
-      label,
-      ...(phonetic ? { phonetic } : {}),
-      ...(audioUrl ? { audioUrl } : {}),
-    }];
+    const phonetic = normalizePronunciationPhone(phone);
+    if (!phonetic) return [];
+    const url = youdaoAudioUrl(speech, sourceText);
+    return [{ label, phonetic, ...(url ? { audio: { url, contentType: "audio/mpeg" } } : {}) }];
   });
 }
 
@@ -774,15 +777,12 @@ function youdaoDictionaryResult(payload, sourceText, from, options) {
   const word = payload?.ec?.word;
   if (!word || !Array.isArray(word.trs) || word.trs.length === 0) return null;
 
-  const pronunciations = youdaoPronunciations(word);
+  const pronunciations = youdaoPronunciations(word, sourceText);
   const meanings = youdaoMeanings(payload);
   const tags = uniqueStrings(stringsFrom(payload?.ec?.exam_type));
   const forms = youdaoForms(word);
   const properties = youdaoProperties(payload);
   const language = dictionarySourceLanguage(sourceText, from, options);
-  const audioUrl = pronunciations.find((item) => item.label === "US" && item.audioUrl)?.audioUrl
-    || pronunciations.find((item) => item.audioUrl)?.audioUrl
-    || "";
 
   return {
     kind: "dictionary",
@@ -794,7 +794,6 @@ function youdaoDictionaryResult(payload, sourceText, from, options) {
       ...(tags.length > 0 ? { tags } : {}),
       ...(forms.length > 0 ? { forms } : {}),
       ...(properties.length > 0 ? { properties } : {}),
-      ...(audioUrl ? { audioUrl } : {}),
     },
   };
 }
