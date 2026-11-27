@@ -6,11 +6,11 @@
   "description": "为 Manggo 提供翻译服务及白描 OCR 识别。",
   "author": "TechDecryptor",
   "homepage": "https://github.com/TechDecryptor/manggo-plugin-free-pack",
+  "updateUrl": "https://github.com/TechDecryptor/manggo-plugin-free-pack/releases/latest/download/updates.json",
   "icon": "icon.jpeg",
   "permissions": [
     "network"
   ],
-  "requires": { "capabilities": ["translation.pronunciationAudio"] },
   "runtime": {
     "kind": "bun",
     "api": "manggo.plugin.v1",
